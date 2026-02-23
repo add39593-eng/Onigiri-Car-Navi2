@@ -2,13 +2,13 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>おにぎりナビ 最短ルート版</title>
+<title>おにぎりナビ コンパス版</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
 <style>
 body{margin:0;font-family:sans-serif;overflow:hidden;}
-#map{height:100vh; display:none;}
+#map{height:100vh; display:none; transform-origin:center center;}
 #panelTop, #panelBottom{display:none;}
 #panelTop{
   position:fixed; top:0; left:0; right:0;
@@ -85,7 +85,7 @@ body{margin:0;font-family:sans-serif;overflow:hidden;}
 <div id="map"></div>
 
 <script>
-let map, currentLatLng=null, currentMarker=null;
+let map, currentLatLng=null, prevLatLng=null, currentMarker=null;
 let destination=null, destinationMarker=null, destinationCircle=null;
 let routeLine=null, routeData=null, steps=[];
 let navStarted=false, mode='driving';
@@ -106,26 +106,36 @@ window.onload = function(){
   },3000);
 }
 
-// --- GPS丸マーカー追尾 ---
+// --- GPS取得・追尾・進行方向 ---
 if("geolocation" in navigator){
   navigator.geolocation.getCurrentPosition(pos=>{
     currentLatLng=[pos.coords.latitude,pos.coords.longitude];
+    prevLatLng=currentLatLng;
     updateCurrentMarker();
     map.setView(currentLatLng,14);
   });
 
   navigator.geolocation.watchPosition(pos=>{
+    prevLatLng = currentLatLng;
     currentLatLng=[pos.coords.latitude,pos.coords.longitude];
     updateCurrentMarker();
+
     if(navStarted){ map.setZoom(16); } else { map.setZoom(14); }
-    map.panTo(currentLatLng); // GPS追尾
+    map.panTo(currentLatLng);
+
+    // --- 進行方向回転 ---
+    if(prevLatLng){
+      let angle = Math.atan2(currentLatLng[1]-prevLatLng[1], currentLatLng[0]-prevLatLng[0]) * 180 / Math.PI;
+      document.getElementById('map').style.transform = `rotate(${-angle}deg)`;
+    }
+
     document.getElementById("gpsStatus").innerText="GPS取得完了";
 
     if(destinationCircle && navStarted){
       let distToDest = map.distance(currentLatLng,destinationCircle.getLatLng());
       if(distToDest <= 20){
         document.getElementById("turnInfo").innerText="目的地に到着！";
-        endNav(); // 到着で自動ルート終了
+        endNav(); // 自動終了
       } else {updateTurnInfo(); updateInfo();}
     } else if(navStarted){updateTurnInfo();updateInfo();}
   });
@@ -152,15 +162,13 @@ function setDestination(latlng){
   document.getElementById("info").innerText="残り距離・到着時間";
 }
 
-// --- 検索機能 ---
+// --- 検索 ---
 function searchAddress(){
   if(navStarted) return;
   const addr=document.getElementById("address").value;
   fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=jp&q=${encodeURIComponent(addr)}`)
     .then(r=>r.json())
-    .then(data=>{
-      if(data.length>0) setDestination([parseFloat(data[0].lat),parseFloat(data[0].lon)]);
-    });
+    .then(data=>{ if(data.length>0) setDestination([parseFloat(data[0].lat),parseFloat(data[0].lon)]); });
 }
 
 // --- マップクリック ---
@@ -180,7 +188,6 @@ function startNav(){
 
   fetch(url).then(r=>r.json()).then(data=>{
     if(!data.routes || data.routes.length==0) return;
-    // --- 距離が最短のルートを自動選択 ---
     let shortest = data.routes.reduce((minRoute, route)=>route.distance < minRoute.distance ? route : minRoute, data.routes[0]);
     routeData = shortest;
     drawRoute(routeData);
@@ -226,7 +233,7 @@ function updateTurnInfo(){
   }
 }
 
-// --- 残り距離・到着時間 ---
+// --- 残り距離 ---
 function updateInfo(){
   if(!currentLatLng||!routeData) return;
   const coords=routeData.geometry.coordinates;
@@ -249,6 +256,5 @@ function updateInfo(){
 
 setInterval(()=>{updateTurnInfo();updateInfo();},1000);
 </script>
-
 </body>
 </html>
