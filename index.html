@@ -9,16 +9,23 @@
 <script src="https://rawcdn.githack.com/bbecquet/Leaflet.RotatedMarker/master/leaflet.rotatedMarker.js"></script>
 <style>
 body{margin:0;font-family:sans-serif;overflow:hidden;}
-#map{height:100vh;}
-#panelTop, #panelBottom{
-  position:fixed; left:50%; transform:translateX(-50%);
+#map{height:100vh; display:none;}
+#panelTop, #panelBottom{display:none;}
+#panelTop{
+  position:fixed; top:10px; left:50%; transform:translateX(-50%);
   background:white; box-shadow:0 4px 10px rgba(0,0,0,0.3);
-  border-radius:24px; padding:10px; width:90%; max-width:350px; font-size:14px; z-index:1000;
+  z-index:1000; font-size:14px; text-align:center; transition:all 0.5s ease;
+  border-radius:24px; padding:10px; width:90%; max-width:350px;
 }
-#panelTop{top:10px;}
-#panelBottom{bottom:10px;}
+#panelBottom{
+  position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
+  background:white;padding:8px;border-radius:12px;
+  box-shadow:0 4px 10px rgba(0,0,0,0.3);z-index:1000;
+  width:90%; max-width:350px;font-size:14px;
+}
 #loader{
-  position:fixed; top:50%; left:50%; transform:translate(-50%,-50%);
+  position:fixed; top:50%; left:50%;
+  transform:translate(-50%,-50%);
   text-align:center; z-index:2000;font-size:16px;
 }
 #spinner{
@@ -73,50 +80,56 @@ body{margin:0;font-family:sans-serif;overflow:hidden;}
 <div id="map"></div>
 
 <script>
-let map = L.map('map').setView([35.681236,139.767125],14);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
-
-let currentLatLng=null, currentMarker=null;
+let map, currentLatLng=null, currentMarker=null;
 let destination=null, destinationMarker=null, destinationCircle=null;
 let routeLine=null, routeData=null, steps=[];
 let navStarted=false, mode='driving';
 
-window.onload = ()=>setTimeout(()=>{
-  document.getElementById('loader').style.display='none';
-  document.getElementById('panelTop').style.display='block';
-  document.getElementById('panelBottom').style.display='block';
-  document.getElementById('map').style.display='block';
-  map.invalidateSize();
-},3000);
+// ★3秒後にロードアニメーション終了→地図初期化
+window.onload = ()=>{
+  setTimeout(()=>{
+    document.getElementById('loader').style.display='none';
+    document.getElementById('map').style.display='block';
+    document.getElementById('panelTop').style.display='block';
+    document.getElementById('panelBottom').style.display='block';
+    
+    // 地図初期化はここで
+    map = L.map('map').setView([35.681236,139.767125],14);
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+  },3000);
+}
 
-// ローカルでのテスト用GPS取得
-navigator.geolocation.watchPosition(pos=>{
-  currentLatLng=[pos.coords.latitude,pos.coords.longitude];
-  if(!currentMarker){
-    currentMarker=L.rotatedMarker(currentLatLng,{
-      icon:L.icon({iconUrl:'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',iconSize:[25,41],iconAnchor:[12,41]})
-    }).addTo(map);
-    map.setView(currentLatLng,16);
-  } else currentMarker.setLatLng(currentLatLng);
+// GPS取得
+if("geolocation" in navigator){
+  navigator.geolocation.watchPosition(pos=>{
+    currentLatLng=[pos.coords.latitude,pos.coords.longitude];
+    if(map && !currentMarker){
+      currentMarker=L.rotatedMarker(currentLatLng,{
+        icon:L.icon({iconUrl:'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',iconSize:[25,41],iconAnchor:[12,41]})
+      }).addTo(map);
+      map.setView(currentLatLng,16);
+    } else if(currentMarker) currentMarker.setLatLng(currentLatLng);
+    document.getElementById("gpsStatus").innerText="GPS取得完了";
 
-  document.getElementById("gpsStatus").innerText="GPS取得完了";
+    if(destinationCircle && navStarted){
+      let distToDest = map.distance(currentLatLng,destinationCircle.getLatLng());
+      if(distToDest <= 20){
+        document.getElementById("turnInfo").innerText="目的地に到着！";
+        endNav();
+      } else { updateTurnInfo(); updateInfo(); updateMarkerRotation(); }
+    }
+  },err=>{console.log("GPSエラー:"+err.message);},{enableHighAccuracy:true,maximiumAge:0});
+}
 
-  if(destinationCircle && navStarted){
-    let distToDest = map.distance(currentLatLng,destinationCircle.getLatLng());
-    if(distToDest <= 20){
-      document.getElementById("turnInfo").innerText="目的地に到着！";
-      endNav();
-    } else { updateTurnInfo(); updateInfo(); updateMarkerRotation(); }
-  }
-},err=>{console.log("GPSエラー:"+err.message);},{enableHighAccuracy:true,maximiumAge:0});
-
-function searchAddress(){/* 略: 先ほどの完全版の住所検索 */}
+// ここから検索・ナビ・ルート処理は以前の完全版と同じ
+function searchAddress(){/* 省略 */}
 function setMode(m){mode=m; if(navStarted) startNav();}
-function startNav(){/* 略: ルート計算、ナビ開始 */}
-function endNav(){/* 略: ルート終了処理 */}
-function updateTurnInfo(){/* 略: 曲がり角案内更新 */}
-function updateInfo(){/* 略: 残り距離・到着時間更新 */}
-function updateMarkerRotation(){/* 略: マーカー回転 */}
+function startNav(){/* 省略 */}
+function endNav(){/* 省略 */}
+function updateTurnInfo(){/* 省略 */}
+function updateInfo(){/* 省略 */}
+function updateMarkerRotation(){/* 省略 */}
 </script>
+
 </body>
 </html>
