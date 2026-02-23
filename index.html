@@ -12,16 +12,16 @@ body{margin:0;font-family:sans-serif;overflow:hidden;}
 #map{height:100vh; display:none;}
 #panelTop, #panelBottom{display:none;}
 #panelTop{
-  position:fixed; top:0; left:0; right:0;
+  position:fixed; top:10px; left:50%; transform:translateX(-50%);
   background:white; box-shadow:0 4px 10px rgba(0,0,0,0.3);
-  z-index:1000; width:100%; font-size:14px; text-align:center; transition:all 0.5s ease;
-  border-radius:24px; padding:10px;
+  z-index:1000; font-size:14px; text-align:center; transition:all 0.5s ease;
+  border-radius:24px; padding:10px; width:90%; max-width:350px;
 }
 #panelBottom{
   position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
   background:white;padding:8px;border-radius:12px;
   box-shadow:0 4px 10px rgba(0,0,0,0.3);z-index:1000;
-  width:95%;max-width:600px;font-size:14px;
+  width:90%; max-width:350px;font-size:14px;
 }
 #loader{
   position:fixed; top:50%; left:50%;
@@ -102,7 +102,9 @@ if("geolocation" in navigator){
   navigator.geolocation.watchPosition(pos=>{
     currentLatLng=[pos.coords.latitude,pos.coords.longitude];
     if(!currentMarker){
-      currentMarker=L.rotatedMarker(currentLatLng,{radius:8,icon:L.icon({iconUrl:'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',iconSize:[25,41],iconAnchor:[12,41]})}).addTo(map);
+      currentMarker=L.rotatedMarker(currentLatLng,{
+        icon:L.icon({iconUrl:'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',iconSize:[25,41],iconAnchor:[12,41]})
+      }).addTo(map);
       map.setView(currentLatLng,16);
     } else currentMarker.setLatLng(currentLatLng);
 
@@ -112,7 +114,7 @@ if("geolocation" in navigator){
       let distToDest = map.distance(currentLatLng,destinationCircle.getLatLng());
       if(distToDest <= 20){
         document.getElementById("turnInfo").innerText="目的地に到着！";
-        endNav(); // 到着で自動終了
+        endNav();
       } else {
         updateTurnInfo(); updateInfo(); updateMarkerRotation();
       }
@@ -152,26 +154,8 @@ function setDestination(latlng){
 }
 
 function setMode(m){mode=m; if(navStarted) startNav();}
-
-function startNav(){
-  if(!currentLatLng||!destination){alert("現在地と目的地を設定してください");return;}
-  navStarted=true;
-  document.getElementById("navBtn").style.display="none";
-  document.getElementById("endBtn").style.display="inline-block";
-  fetchRoute();
-}
-
-function endNav(){
-  navStarted=false;
-  document.getElementById("navBtn").style.display="inline-block";
-  document.getElementById("endBtn").style.display="none";
-  if(routeLine){ map.removeLayer(routeLine); routeLine=null; routeData=null; steps=[]; }
-  if(destinationMarker){ map.removeLayer(destinationMarker); destinationMarker=null; }
-  if(destinationCircle){ map.removeLayer(destinationCircle); destinationCircle=null; }
-  destination=null;
-  document.getElementById("turnInfo").innerText="曲がり角案内";
-  document.getElementById("info").innerText="残り距離・到着時間";
-}
+function startNav(){if(!currentLatLng||!destination){alert("現在地と目的地を設定してください");return;}navStarted=true; document.getElementById("navBtn").style.display="none"; document.getElementById("endBtn").style.display="inline-block"; fetchRoute();}
+function endNav(){navStarted=false; document.getElementById("navBtn").style.display="inline-block"; document.getElementById("endBtn").style.display="none"; if(routeLine){ map.removeLayer(routeLine); routeLine=null; routeData=null; steps=[]; } if(destinationMarker){ map.removeLayer(destinationMarker); destinationMarker=null; } if(destinationCircle){ map.removeLayer(destinationCircle); destinationCircle=null; } destination=null; document.getElementById("turnInfo").innerText="曲がり角案内"; document.getElementById("info").innerText="残り距離・到着時間";}
 
 function fetchRoute(){
   let profile=(mode==='foot')?'foot':'driving';
