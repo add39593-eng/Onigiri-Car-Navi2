@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>おにぎりナビ GPS追尾完全版</title>
+<title>おにぎりナビ 完全版</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -70,7 +70,7 @@ body{margin:0;font-family:sans-serif;overflow:hidden;}
   <input id="address" placeholder="目的地住所">
   <button onclick="searchAddress()">検索</button>
   <button onclick="startNav()">ナビ開始</button>
-  <button id="endNavBtn" onclick="endNav()" style="display:none;">ナビ終了</button>
+  <button id="endNavBtn" onclick="endNav()" style="display:none;">ルート終了</button>
   <div class="modeButtons">
     <button onclick="setMode('driving')">車モード</button>
     <button onclick="setMode('foot')">歩行者モード</button>
@@ -125,9 +125,11 @@ if("geolocation" in navigator){
 
     if(destinationCircle && navStarted){
       let distToDest = map.distance(currentLatLng,destinationCircle.getLatLng());
-      if(distToDest <= 20) document.getElementById("turnInfo").innerText="目的地に到着！";
-      else {updateTurnInfo(); updateInfo();}
-    } else if(navStarted){updateTurnInfo(); updateInfo();}
+      if(distToDest <= 20){
+        document.getElementById("turnInfo").innerText="目的地に到着！";
+        endNav(); // 到着でルート自動終了
+      } else {updateTurnInfo(); updateInfo();}
+    } else if(navStarted){updateTurnInfo();updateInfo();}
   });
 } else alert("ブラウザが位置情報に対応していません");
 
@@ -200,15 +202,13 @@ function startNav(){
   });
 }
 
-// --- ナビ終了 ---
+// --- ナビ終了・ルート消去 ---
 function endNav(){
   navStarted=false;
   document.getElementById("endNavBtn").style.display='none';
-  if(routeLine) map.removeLayer(routeLine); routeLine=null;
-  steps=[];
+  if(routeLine){ map.removeLayer(routeLine); routeLine=null; routeData=null; steps=[]; }
   document.getElementById("turnInfo").innerText="曲がり角案内";
   document.getElementById("info").innerText="残り距離・到着時間";
-  // GPS追尾は継続、ナビ終了後もズームは16で表示
 }
 
 // --- 曲がり角 ---
