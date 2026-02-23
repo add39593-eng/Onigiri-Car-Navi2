@@ -85,15 +85,14 @@ let destination=null, destinationMarker=null, destinationCircle=null;
 let routeLine=null, routeData=null, steps=[];
 let navStarted=false, mode='driving';
 
-// ★3秒後にロードアニメーション終了→地図初期化
+// 3秒アニメーション後に地図初期化
 window.onload = ()=>{
   setTimeout(()=>{
     document.getElementById('loader').style.display='none';
     document.getElementById('map').style.display='block';
     document.getElementById('panelTop').style.display='block';
     document.getElementById('panelBottom').style.display='block';
-    
-    // 地図初期化はここで
+
     map = L.map('map').setView([35.681236,139.767125],14);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
   },3000);
@@ -121,7 +120,7 @@ if("geolocation" in navigator){
   },err=>{console.log("GPSエラー:"+err.message);},{enableHighAccuracy:true,maximiumAge:0});
 }
 
-// ここから検索・ナビ・ルート処理は以前の完全版と同じ
+// ナビ関連の関数は以前の完全版と同じ
 function searchAddress(){/* 省略 */}
 function setMode(m){mode=m; if(navStarted) startNav();}
 function startNav(){/* 省略 */}
