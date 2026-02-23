@@ -90,7 +90,7 @@ let destination=null, destinationMarker=null, destinationCircle=null;
 let routeLine=null, routeData=null, steps=[];
 let navStarted=false, mode='driving';
 
-map = L.map('map').setView([35.681236,139.767125],14); // 起動時GPS付近を俯瞰
+map = L.map('map').setView([35.681236,139.767125],14);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
 window.onload = function(){
@@ -118,10 +118,8 @@ if("geolocation" in navigator){
     currentLatLng=[pos.coords.latitude,pos.coords.longitude];
     updateCurrentMarker();
 
-    if(navStarted || !navStarted){
-      // 常にGPS追尾
-      map.setView(currentLatLng,map.getZoom());
-    }
+    // ナビ中は少し俯瞰（ズーム16）、それ以外はズーム14
+    map.setView(currentLatLng, navStarted ? 16 : 14);
 
     document.getElementById("gpsStatus").innerText="GPS取得完了";
 
@@ -142,7 +140,7 @@ function updateCurrentMarker(){
 
 // --- 目的地設定 ---
 function setDestination(latlng){
-  if(navStarted) return; // ナビ中は変更不可
+  if(navStarted) return;
   destination = latlng;
   if(destinationMarker) map.removeLayer(destinationMarker);
   if(destinationCircle) map.removeLayer(destinationCircle);
@@ -156,14 +154,12 @@ function setDestination(latlng){
 
 // --- 検索機能 ---
 function searchAddress(){
-  if(navStarted) return; // ナビ中は不可
+  if(navStarted) return;
   const addr=document.getElementById("address").value;
   fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=jp&q=${encodeURIComponent(addr)}`)
     .then(r=>r.json())
     .then(data=>{
-      if(data.length>0){
-        setDestination([parseFloat(data[0].lat),parseFloat(data[0].lon)]);
-      }
+      if(data.length>0) setDestination([parseFloat(data[0].lat),parseFloat(data[0].lon)]);
     });
 }
 
@@ -193,10 +189,10 @@ function startNav(){
       let instr="";
       switch(s.maneuver.type){
         case "turn": instr=(s.maneuver.modifier==="left")?"左に曲がる":(s.maneuver.modifier==="right")?"右に曲がる":"曲がる"; break;
-      case "uturn": instr="Uターン"; break;
-      case "depart": instr="直進"; break;
-      case "roundabout": instr="ロータリー"; break;
-      default: instr="直進";
+        case "uturn": instr="Uターン"; break;
+        case "depart": instr="直進"; break;
+        case "roundabout": instr="ロータリー"; break;
+        default: instr="直進";
       }
       steps.push({latlng:[s.maneuver.location[1],s.maneuver.location[0]],instruction:instr,distance:s.distance});
     });
@@ -212,7 +208,7 @@ function endNav(){
   steps=[];
   document.getElementById("turnInfo").innerText="曲がり角案内";
   document.getElementById("info").innerText="残り距離・到着時間";
-  // GPS追尾は継続
+  // GPS追尾は継続、ナビ終了後もズームは16で表示
 }
 
 // --- 曲がり角 ---
