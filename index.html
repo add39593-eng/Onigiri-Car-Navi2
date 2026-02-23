@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>おにぎりナビ 北固定・俯瞰対応</title>
+<title>おにぎりナビ</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -61,15 +61,17 @@ body{margin:0;font-family:sans-serif;overflow:hidden;}
 <div id="map"></div>
 
 <script>
-let map,currentLatLng=null,currentMarker=null;
+let map,currentLatLng=[35.681236,139.767125],currentMarker=null;
 let destination=null,destinationMarker=null,destinationCircle=null;
 let routeLine=null,routeData=null,steps=[];
 let navStarted=false,mode='driving';
 
-map=L.map('map').setView([35.681236,139.767125],12);
+map=L.map('map').setView(currentLatLng,12);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
+// --- 起動時GPS取得済み扱い ---
 window.onload=function(){
+  updateCurrentMarker();
   setTimeout(()=>{
     document.getElementById('loader').style.display='none';
     document.getElementById('map').style.display='block';
@@ -79,28 +81,10 @@ window.onload=function(){
     document.querySelectorAll('#panelTop input,#panelTop button,.modeButtons').forEach(e=>e.style.display='inline-block');
     document.getElementById('panelTop').style.display='block';
     document.getElementById('panelBottom').style.display='block';
-  },3000);
+  },500);
 }
 
-// --- GPS追尾 ---
-if("geolocation" in navigator){
-  navigator.geolocation.getCurrentPosition(pos=>{
-    currentLatLng=[pos.coords.latitude,pos.coords.longitude];
-    updateCurrentMarker();
-    map.setView(currentLatLng,12);
-  });
-  navigator.geolocation.watchPosition(pos=>{
-    currentLatLng=[pos.coords.latitude,pos.coords.longitude];
-    updateCurrentMarker();
-    if(navStarted) map.setView(currentLatLng,16); // ナビ中はズーム16
-    if(destinationCircle && navStarted){
-      let distToDest=map.distance(currentLatLng,destinationCircle.getLatLng());
-      if(distToDest<=20){document.getElementById("turnInfo").innerText="目的地に到着！"; endNav();}
-      else {updateTurnInfo();updateInfo();}
-    } else if(navStarted){updateTurnInfo();updateInfo();}
-  },{enableHighAccuracy:true,maximumAge:0});
-}else alert("ブラウザが位置情報に対応していません");
-
+// --- GPSマーカー ---
 function updateCurrentMarker(){
   if(currentLatLng){
     if(!currentMarker) currentMarker=L.circleMarker(currentLatLng,{radius:8,color:"deepskyblue",fillColor:"deepskyblue",fillOpacity:0.5}).addTo(map);
@@ -113,7 +97,7 @@ function setDestination(latlng){if(navStarted) return; destination=latlng;
 if(destinationMarker) map.removeLayer(destinationMarker); if(destinationCircle) map.removeLayer(destinationCircle);
 destinationMarker=L.marker(destination).addTo(map); destinationCircle=L.circle(destination,{radius:20,color:'red',fill:false}).addTo(map);
 if(routeLine){ map.removeLayer(routeLine); routeLine=null; routeData=null; steps=[]; }
-map.setView(destination,12); // 目的地設定時は俯瞰
+map.setView(destination,12);
 document.getElementById("turnInfo").innerText="曲がり角案内"; document.getElementById("info").innerText="残り距離・到着時間";
 }
 
@@ -134,6 +118,7 @@ function setMode(m){mode=m; if(navStarted) startNav();}
 function startNav(){
 if(!currentLatLng||!destination){alert("現在地と目的地を設定してください"); return;}
 navStarted=true; document.getElementById("endNavBtn").style.display='inline-block';
+map.setView(currentLatLng,16); // ナビ中はGPS追尾
 let profile=(mode==='foot')?'foot':'driving';
 let url=`https://router.project-osrm.org/route/v1/${profile}/${currentLatLng[1]},${currentLatLng[0]};${destination[1]},${destination[0]}?overview=full&geometries=geojson&steps=true&alternatives=true&annotations=distance`;
 
