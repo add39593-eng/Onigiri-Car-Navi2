@@ -13,7 +13,7 @@ body{margin:0;font-family:sans-serif;overflow:hidden;}
 #panelTop{position:fixed; top:0; left:0; right:0; background:white; box-shadow:0 4px 10px rgba(0,0,0,0.3); z-index:1000; width:100%; font-size:14px; text-align:center; transition:all 0.5s ease; border-radius:24px;}
 #panelTop.opening{height:150px;padding:20px;}
 #panelTop.nav{height:auto;padding:10px; width:90%; max-width:400px; margin:0 auto; border-radius:24px;}
-#panelTop h1, #panelTop input, #panelTop button, #panelTop .modeButtons{display:none;}
+#panelTop input, #panelTop button, #panelTop .modeButtons{display:none;}
 #panelBottom{position:fixed;bottom:10px;left:50%;transform:translateX(-50%);background:white;padding:8px;border-radius:12px;box-shadow:0 4px 10px rgba(0,0,0,0.3);z-index:1000;width:95%;max-width:600px;font-size:14px;}
 #loader{position:fixed; top:50%; left:50%; transform:translate(-50%,-50%); text-align:center; z-index:2000;font-size:16px;}
 #spinner{width:80px; height:80px; position:relative; margin:0 auto; transform-origin:center center; animation:spin 1.5s linear infinite;}
@@ -43,7 +43,6 @@ body{margin:0;font-family:sans-serif;overflow:hidden;}
 </div>
 
 <div id="panelTop" class="opening">
-  <div id="gpsStatus">GPS未取得</div>
   <input id="address" placeholder="目的地住所">
   <button onclick="searchAddress()">検索</button>
   <button onclick="startNav()">ナビ開始</button>
@@ -94,7 +93,6 @@ if("geolocation" in navigator){
     currentLatLng=[pos.coords.latitude,pos.coords.longitude];
     updateCurrentMarker();
     if(navStarted) map.setView(currentLatLng,16); // ナビ中はズーム16
-    document.getElementById("gpsStatus").innerText="GPS取得完了";
     if(destinationCircle && navStarted){
       let distToDest=map.distance(currentLatLng,destinationCircle.getLatLng());
       if(distToDest<=20){document.getElementById("turnInfo").innerText="目的地に到着！"; endNav();}
@@ -141,7 +139,6 @@ let url=`https://router.project-osrm.org/route/v1/${profile}/${currentLatLng[1]}
 
 fetch(url).then(r=>r.json()).then(data=>{
 if(!data.routes || data.routes.length==0) return;
-// 歩行者ルート安全チェック
 let routes=data.routes;
 if(mode==='foot'){
   routes=routes.filter(rt=>{
@@ -152,7 +149,6 @@ if(mode==='foot'){
   });
   if(routes.length===0){alert("安全な歩行者ルートが見つかりません"); return;}
 }
-// 最短距離ルート
 let shortest=routes.reduce((min,rt)=>rt.distance<min.distance?rt:min,routes[0]);
 routeData=shortest; drawRoute(routeData);
 });
