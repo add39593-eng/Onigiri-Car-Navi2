@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>おにぎりナビ GPS丸マーカー版</title>
+<title>おにぎりナビ GPS丸マーカー追尾版</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -90,7 +90,7 @@ let destination=null, destinationMarker=null, destinationCircle=null;
 let routeLine=null, routeData=null, steps=[];
 let navStarted=false, mode='driving';
 
-map = L.map('map').setView([35.681236,139.767125],16);
+map = L.map('map').setView([35.681236,139.767125],14); // デフォルトGPS付近
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
 window.onload = function(){
@@ -111,13 +111,15 @@ if("geolocation" in navigator){
   navigator.geolocation.getCurrentPosition(pos=>{
     currentLatLng=[pos.coords.latitude,pos.coords.longitude];
     updateCurrentMarker();
-    map.setView(currentLatLng,16); // 起動時GPS付近を表示
+    map.setView(currentLatLng,14); // 起動時GPS付近を俯瞰表示
   });
 
   navigator.geolocation.watchPosition(pos=>{
     currentLatLng=[pos.coords.latitude,pos.coords.longitude];
     updateCurrentMarker();
-    map.setView(currentLatLng,map.getZoom()); // GPS追尾
+
+    if(navStarted){ map.setView(currentLatLng,map.getZoom()); } // ナビ中のみ追尾
+
     document.getElementById("gpsStatus").innerText="GPS取得完了";
 
     if(destinationCircle && navStarted){
@@ -144,20 +146,20 @@ function setDestination(latlng){
   destinationCircle = L.circle(destination,{radius:20,color:'red',fill:false}).addTo(map);
   if(routeLine){ map.removeLayer(routeLine); routeLine=null; routeData=null; steps=[]; }
   navStarted=false;
+  map.setView(destination,14); // 目的地俯瞰表示
   document.getElementById("turnInfo").innerText="曲がり角案内";
   document.getElementById("info").innerText="残り距離・到着時間";
 }
 
 // --- 検索機能 ---
 function searchAddress(){
-  if(navStarted) return; // ナビ中は検索不可
+  if(navStarted) return;
   const addr=document.getElementById("address").value;
   fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=jp&q=${encodeURIComponent(addr)}`)
     .then(r=>r.json())
     .then(data=>{
       if(data.length>0){
         setDestination([parseFloat(data[0].lat),parseFloat(data[0].lon)]);
-        map.setView([parseFloat(data[0].lat),parseFloat(data[0].lon)],16);
       }
     });
 }
@@ -207,6 +209,7 @@ function endNav(){
   steps=[];
   document.getElementById("turnInfo").innerText="曲がり角案内";
   document.getElementById("info").innerText="残り距離・到着時間";
+  if(destination) map.setView(destination,14); // ナビ終了後は目的地俯瞰
 }
 
 // --- 曲がり角 ---
