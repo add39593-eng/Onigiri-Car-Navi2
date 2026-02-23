@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>おにぎりナビ 完全版GPS追尾</title>
+<title>おにぎりナビ 最短ルート版</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -106,7 +106,7 @@ window.onload = function(){
   },3000);
 }
 
-// --- GPS取得と丸マーカー ---
+// --- GPS丸マーカー追尾 ---
 if("geolocation" in navigator){
   navigator.geolocation.getCurrentPosition(pos=>{
     currentLatLng=[pos.coords.latitude,pos.coords.longitude];
@@ -117,13 +117,8 @@ if("geolocation" in navigator){
   navigator.geolocation.watchPosition(pos=>{
     currentLatLng=[pos.coords.latitude,pos.coords.longitude];
     updateCurrentMarker();
-
-    // ナビ中は少し俯瞰（ズーム16）、それ以外はズーム14
     if(navStarted){ map.setZoom(16); } else { map.setZoom(14); }
-
-    // GPS追尾
-    map.panTo(currentLatLng);
-
+    map.panTo(currentLatLng); // GPS追尾
     document.getElementById("gpsStatus").innerText="GPS取得完了";
 
     if(destinationCircle && navStarted){
@@ -181,38 +176,45 @@ function startNav(){
   document.getElementById("endNavBtn").style.display='inline-block';
 
   let profile=(mode==='foot')?'foot':'driving';
-  let url=`https://router.project-osrm.org/route/v1/${profile}/${currentLatLng[1]},${currentLatLng[0]};${destination[1]},${destination[0]}?overview=full&geometries=geojson&steps=true&alternatives=false`;
+  let url=`https://router.project-osrm.org/route/v1/${profile}/${currentLatLng[1]},${currentLatLng[0]};${destination[1]},${destination[0]}?overview=full&geometries=geojson&steps=true&alternatives=true&annotations=distance`;
 
   fetch(url).then(r=>r.json()).then(data=>{
-    routeData=data.routes[0];
-    if(routeLine) map.removeLayer(routeLine);
-    const coords=routeData.geometry.coordinates.map(c=>[c[1],c[0]]);
-    routeLine=L.polyline(coords,{color:"blue",weight:6}).addTo(map);
-
-    steps=[];
-    routeData.legs[0].steps.forEach(s=>{
-      let instr="";
-      switch(s.maneuver.type){
-        case "turn": instr=(s.maneuver.modifier==="left")?"左に曲がる":(s.maneuver.modifier==="right")?"右に曲がる":"曲がる"; break;
-        case "uturn": instr="Uターン"; break;
-        case "depart": instr="直進"; break;
-        case "roundabout": instr="ロータリー"; break;
-        default: instr="直進";
-      }
-      steps.push({latlng:[s.maneuver.location[1],s.maneuver.location[0]],instruction:instr,distance:s.distance});
-    });
-    updateTurnInfo(); updateInfo();
+    if(!data.routes || data.routes.length==0) return;
+    // --- 距離が最短のルートを自動選択 ---
+    let shortest = data.routes.reduce((minRoute, route)=>route.distance < minRoute.distance ? route : minRoute, data.routes[0]);
+    routeData = shortest;
+    drawRoute(routeData);
   });
 }
 
-// --- ナビ終了・ルート消去 ---
+// --- ルート描画 ---
+function drawRoute(route){
+  if(routeLine) map.removeLayer(routeLine);
+  const coords=route.geometry.coordinates.map(c=>[c[1],c[0]]);
+  routeLine=L.polyline(coords,{color:"blue",weight:6}).addTo(map);
+
+  steps=[];
+  route.legs[0].steps.forEach(s=>{
+    let instr="";
+    switch(s.maneuver.type){
+      case "turn": instr=(s.maneuver.modifier==="left")?"左に曲がる":(s.maneuver.modifier==="right")?"右に曲がる":"曲がる"; break;
+      case "uturn": instr="Uターン"; break;
+      case "depart": instr="直進"; break;
+      case "roundabout": instr="ロータリー"; break;
+      default: instr="直進";
+    }
+    steps.push({latlng:[s.maneuver.location[1],s.maneuver.location[0]],instruction:instr,distance:s.distance});
+  });
+  updateTurnInfo(); updateInfo();
+}
+
+// --- ナビ終了 ---
 function endNav(){
   navStarted=false;
   document.getElementById("endNavBtn").style.display='none';
   if(routeLine){ map.removeLayer(routeLine); routeLine=null; routeData=null; steps=[]; }
   document.getElementById("turnInfo").innerText="曲がり角案内";
   document.getElementById("info").innerText="残り距離・到着時間";
-  // GPS追尾は継続
 }
 
 // --- 曲がり角 ---
