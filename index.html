@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>おにぎりカーナビ GPS対応</title>
+<title>おにぎりカーナビ GPS追尾版</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -62,26 +62,27 @@ let destination=null,destinationMarker=null,destinationCircle=null;
 let routeLine=null,routeData=null,steps=[];
 let navStarted=false,mode='driving';
 
-map=L.map('map').setView([35.681236,139.767125],12);
+// 地図初期化（位置取得後にセット）
+map=L.map('map');
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
-// 起動時GPS取得
-function initMap(){
+// GPS取得
+function initGPS(){
   if("geolocation" in navigator){
     navigator.geolocation.watchPosition(pos=>{
       currentLatLng=[pos.coords.latitude,pos.coords.longitude];
       updateCurrentMarker();
-      if(!navStarted) map.setView(currentLatLng,12); // 起動時は俯瞰
+      if(!navStarted) map.setView(currentLatLng,12); // 起動時俯瞰
     },err=>{alert("GPS取得エラー: "+err.message);},{enableHighAccuracy:true,maximumAge:0});
   } else alert("ブラウザが位置情報に対応していません");
 }
 
-// GPSマーカー
+// GPSマーカー更新
 function updateCurrentMarker(){
   if(currentLatLng){
     if(!currentMarker) currentMarker=L.circleMarker(currentLatLng,{radius:8,color:"deepskyblue",fillColor:"deepskyblue",fillOpacity:0.5}).addTo(map);
     else currentMarker.setLatLng(currentLatLng);
-    if(navStarted) map.setView(currentLatLng,16); // ナビ中GPS追尾
+    if(navStarted) map.setView(currentLatLng,16); // ナビ中はGPS追尾
   }
 }
 
@@ -111,7 +112,6 @@ navStarted=true; document.getElementById("endNavBtn").style.display='inline-bloc
 map.setView(currentLatLng,16); // ナビ中はGPS追尾
 let profile='driving';
 let url=`https://router.project-osrm.org/route/v1/${profile}/${currentLatLng[1]},${currentLatLng[0]};${destination[1]},${destination[0]}?overview=full&geometries=geojson&steps=true&alternatives=true`;
-
 fetch(url).then(r=>r.json()).then(data=>{
 if(!data.routes || data.routes.length==0) return;
 let shortest=data.routes.reduce((min,rt)=>rt.distance<min.distance?rt:min,data.routes[0]);
@@ -161,7 +161,7 @@ routeLine=L.polyline(future,{color:"blue",weight:6}).addTo(map);}}
 setInterval(()=>{updateTurnInfo();updateInfo();},1000);
 
 // 初期GPS開始
-initMap();
+initGPS();
 
 // ローダー消す
 window.onload=function(){
