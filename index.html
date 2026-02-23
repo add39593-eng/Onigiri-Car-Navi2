@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>おにぎりナビ 完全版</title>
+<title>おにぎりナビ GPS追尾版</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -51,10 +51,7 @@ body{margin:0;font-family:sans-serif;overflow:hidden;}
 .dot:nth-child(8){transform:rotate(280deg) translate(35px);}
 .dot:nth-child(9){transform:rotate(320deg) translate(35px);}
 @keyframes spin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
-
-/* Leaflet不要ズーム非表示 */
 .leaflet-control-zoom { display: none !important; }
-
 </style>
 </head>
 <body>
@@ -92,7 +89,6 @@ let map, currentLatLng=null, currentMarker=null;
 let destination=null, destinationMarker=null, destinationCircle=null;
 let routeLine=null, routeData=null, steps=[];
 let navStarted=false, destinationLocked=false, mode='driving';
-let heading=0; // 端末向き
 
 map = L.map('map').setView([35.681236,139.767125],14);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
@@ -113,12 +109,16 @@ window.onload = function(){
   },3000);
 }
 
-// --- GPS取得 ---
+// --- GPS取得と丸マーカー表示 ---
 if("geolocation" in navigator){
   navigator.geolocation.watchPosition(pos=>{
     currentLatLng=[pos.coords.latitude,pos.coords.longitude];
-    updateHeadingMarker();
+    updateCurrentMarker(); // 丸マーカー更新
+
     document.getElementById("gpsStatus").innerText="GPS取得完了";
+
+    // GPS追尾
+    map.setView(currentLatLng, map.getZoom());
 
     if(destinationCircle && currentLatLng){
       let distToDest = map.distance(currentLatLng,destinationCircle.getLatLng());
@@ -133,46 +133,16 @@ if("geolocation" in navigator){
   },err=>{alert("GPS取得エラー: "+err.message);},{enableHighAccuracy:true,maximumAge:0});
 } else alert("ブラウザが位置情報に対応していません");
 
-// --- 端末方位取得 ---
-if(window.DeviceOrientationEvent){
-  window.addEventListener('deviceorientationabsolute', e=>{
-    if(e.absolute && e.alpha!==null){heading=e.alpha; updateHeadingMarker();}
-  });
-  window.addEventListener('deviceorientation', e=>{
-    if(e.alpha!==null){heading=e.alpha; updateHeadingMarker();}
-  });
+// --- 現在地丸マーカー ---
+function updateCurrentMarker(){
+  if(currentLatLng){
+    if(!currentMarker){
+      currentMarker=L.circleMarker(currentLatLng,{radius:8,color:"deepskyblue",fillColor:"deepskyblue",fillOpacity:0.5}).addTo(map);
+    } else currentMarker.setLatLng(currentLatLng);
+  }
 }
 
-// --- マーカー作成（矢印） ---
-function createHeadingMarker(latlng){
-  if(currentMarker) map.removeLayer(currentMarker);
-  const arrowIcon = L.divIcon({
-    html: `<div style="transform:rotate(${heading}deg);font-size:24px;">⬆️</div>`,
-    className:'',
-    iconSize:[24,24],
-    iconAnchor:[12,12]
-  });
-  currentMarker = L.marker(latlng, {icon:arrowIcon}).addTo(map);
-}
-function updateHeadingMarker(){
-  if(currentLatLng) createHeadingMarker(currentLatLng);
-}
-
-// --- 住所検索 ---
-function searchAddress(){
-  if(destinationLocked) return; // ナビ中は変更不可
-
-  const addr = document.getElementById("address").value;
-  fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=jp&q=${addr}`)
-  .then(r=>r.json())
-  .then(data=>{
-    if(data.length>0){
-      setDestination([parseFloat(data[0].lat),parseFloat(data[0].lon)]);
-    }
-  });
-}
-
-// --- 目的地設定共通関数 ---
+// --- 目的地設定共通 ---
 function setDestination(latlng){
   destination = latlng;
   if(destinationMarker) map.removeLayer(destinationMarker);
@@ -180,46 +150,44 @@ function setDestination(latlng){
   destinationMarker = L.marker(destination).addTo(map);
   destinationCircle = L.circle(destination,{radius:20,color:'red',fill:false}).addTo(map);
   if(routeLine){ map.removeLayer(routeLine); routeLine=null; routeData=null; steps=[]; }
-  map.setView(destination,15);
   navStarted=false;
   document.getElementById("turnInfo").innerText="曲がり角案内";
   document.getElementById("info").innerText="残り距離・到着時間";
 }
 
-// --- マップクリック ---
-map.on('click', function(e){
-  if(destinationLocked) return;
-  setDestination([e.latlng.lat,e.latlng.lng]);
-});
+// --- 住所検索 ---
+function searchAddress(){if(destinationLocked) return;
+  const addr=document.getElementById("address").value;
+  fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=jp&q=${addr}`)
+  .then(r=>r.json()).then(data=>{if(data.length>0)setDestination([parseFloat(data[0].lat),parseFloat(data[0].lon)]);});
+}
 
-// --- ナビモード切替 ---
+// --- マップクリック ---
+map.on('click',function(e){if(destinationLocked) return; setDestination([e.latlng.lat,e.latlng.lng]);});
+
+// --- モード切替 ---
 function setMode(m){mode=m; if(navStarted) startNav();}
 
 // --- ナビ開始 ---
 function startNav(){
   if(!currentLatLng||!destination){alert("現在地と目的地を設定してください");return;}
-  navStarted=true;
-  destinationLocked=true;
+  navStarted=true; destinationLocked=true;
   document.getElementById("endNavBtn").style.display='inline-block';
 
-  let profile = (mode==='foot')?'foot':'driving';
+  let profile=(mode==='foot')?'foot':'driving';
   let url=`https://router.project-osrm.org/route/v1/${profile}/${currentLatLng[1]},${currentLatLng[0]};${destination[1]},${destination[0]}?overview=full&geometries=geojson&steps=true&alternatives=false`;
 
   fetch(url).then(r=>r.json()).then(data=>{
-    routeData = data.routes[0];
+    routeData=data.routes[0];
     if(routeLine){ map.removeLayer(routeLine); routeLine=null; }
-
-    const coords = routeData.geometry.coordinates.map(c=>[c[1],c[0]]);
+    const coords=routeData.geometry.coordinates.map(c=>[c[1],c[0]]);
     routeLine=L.polyline(coords,{color:"blue",weight:6}).addTo(map);
 
     steps=[];
     routeData.legs[0].steps.forEach(s=>{
       let instr="";
       switch(s.maneuver.type){
-        case "turn":
-          if(s.maneuver.modifier==="left") instr="左に曲がる";
-          else if(s.maneuver.modifier==="right") instr="右に曲がる";
-          else instr="曲がる"; break;
+        case "turn": instr=(s.maneuver.modifier==="left")?"左に曲がる":(s.maneuver.modifier==="right")?"右に曲がる":"曲がる"; break;
         case "uturn": instr="Uターン"; break;
         case "depart": instr="直進"; break;
         case "roundabout": instr="ロータリー"; break;
@@ -227,15 +195,13 @@ function startNav(){
       }
       steps.push({latlng:[s.maneuver.location[1],s.maneuver.location[0]],instruction:instr,distance:s.distance});
     });
-    updateTurnInfo();
-    updateInfo();
+    updateTurnInfo(); updateInfo();
   });
 }
 
 // --- ナビ終了 ---
 function endNav(){
-  navStarted=false;
-  destinationLocked=false;
+  navStarted=false; destinationLocked=false;
   document.getElementById("endNavBtn").style.display='none';
   if(routeLine){ map.removeLayer(routeLine); routeLine=null; }
   steps=[];
@@ -243,15 +209,12 @@ function endNav(){
   document.getElementById("info").innerText="残り距離・到着時間";
 }
 
-// --- 曲がり角案内更新 ---
+// --- 曲がり角 ---
 function updateTurnInfo(){
   if(!currentLatLng||steps.length===0){document.getElementById("turnInfo").innerText="曲がり角案内";return;}
   for(let i=0;i<steps.length;i++){
     let d=map.distance(currentLatLng,steps[i].latlng);
-    if(d>5){
-      document.getElementById("turnInfo").innerText=`次の曲がり角まで ${Math.round(d)} m → ${steps[i].instruction}`;
-      break;
-    }
+    if(d>5){document.getElementById("turnInfo").innerText=`次の曲がり角まで ${Math.round(d)} m → ${steps[i].instruction}`; break;}
   }
 }
 
@@ -260,38 +223,26 @@ function updateInfo(){
   if(!currentLatLng||!routeData) return;
   const coords=routeData.geometry.coordinates;
   let minDist=Infinity, nearestIndex=0;
-  coords.forEach((c,i)=>{
-    let latlng=[c[1],c[0]];
-    let d=map.distance(currentLatLng,latlng);
-    if(d<minDist){minDist=d; nearestIndex=i;}
-  });
+  coords.forEach((c,i)=>{let latlng=[c[1],c[0]]; let d=map.distance(currentLatLng,latlng); if(d<minDist){minDist=d;nearestIndex=i;}});
+  if(minDist>50) return;
 
-  if(minDist>50){
-    startNav(); // ルート再計算
-    return; 
-  }
-
-  let dist=0;
-  for(let i=nearestIndex;i<coords.length-1;i++)
-    dist+=map.distance([coords[i][1],coords[i][0]],[coords[i+1][1],coords[i+1][0]]);
-  let speedKmh = (mode==='driving')?40:4.5;
-  let timeH = dist/1000/speedKmh;
-  let hours=Math.floor(timeH);
-  let minutes=Math.round((timeH-hours)*60);
+  let dist=0; for(let i=nearestIndex;i<coords.length-1;i++) dist+=map.distance([coords[i][1],coords[i][0]],[coords[i+1][1],coords[i+1][0]]);
+  let speedKmh=(mode==='driving')?40:4.5;
+  let timeH=dist/1000/speedKmh; let hours=Math.floor(timeH); let minutes=Math.round((timeH-hours)*60);
   document.getElementById("info").innerText=`残り ${(dist/1000).toFixed(2)} km | 到着まで あと ${hours}時間 ${minutes}分`;
 
   if(routeLine){
     const past=coords.slice(0,nearestIndex+1).map(c=>[c[1],c[0]]);
     const future=coords.slice(nearestIndex).map(c=>[c[1],c[0]]);
-    if(routeLine) map.removeLayer(routeLine);
+    map.removeLayer(routeLine);
     L.polyline(past,{color:"gray",weight:6}).addTo(map);
     routeLine=L.polyline(future,{color:"blue",weight:6}).addTo(map);
   }
 }
 
-// --- 1秒ごとに更新 ---
+// --- 定期更新 ---
 setInterval(()=>{if(navStarted){updateTurnInfo();updateInfo();}},1000);
-
 </script>
+
 </body>
 </html>
