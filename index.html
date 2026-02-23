@@ -85,7 +85,6 @@ let destination=null, destinationMarker=null, destinationCircle=null;
 let routeLine=null, routeData=null, steps=[];
 let navStarted=false, mode='driving';
 
-// 3秒アニメーション後に地図初期化
 window.onload = ()=>{
   setTimeout(()=>{
     document.getElementById('loader').style.display='none';
@@ -98,29 +97,42 @@ window.onload = ()=>{
   },3000);
 }
 
-// GPS取得
+// GPS取得して地図上にマーカー表示
 if("geolocation" in navigator){
   navigator.geolocation.watchPosition(pos=>{
     currentLatLng=[pos.coords.latitude,pos.coords.longitude];
-    if(map && !currentMarker){
-      currentMarker=L.rotatedMarker(currentLatLng,{
-        icon:L.icon({iconUrl:'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',iconSize:[25,41],iconAnchor:[12,41]})
-      }).addTo(map);
-      map.setView(currentLatLng,16);
-    } else if(currentMarker) currentMarker.setLatLng(currentLatLng);
+
+    if(map){
+      if(!currentMarker){
+        // 現在地マーカー設置
+        currentMarker=L.rotatedMarker(currentLatLng,{
+          icon:L.icon({iconUrl:'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',iconSize:[25,41],iconAnchor:[12,41]})
+        }).addTo(map);
+        map.setView(currentLatLng,16);
+      } else {
+        // マーカー移動
+        currentMarker.setLatLng(currentLatLng);
+      }
+    }
+
     document.getElementById("gpsStatus").innerText="GPS取得完了";
 
+    // 到着判定
     if(destinationCircle && navStarted){
       let distToDest = map.distance(currentLatLng,destinationCircle.getLatLng());
       if(distToDest <= 20){
         document.getElementById("turnInfo").innerText="目的地に到着！";
         endNav();
-      } else { updateTurnInfo(); updateInfo(); updateMarkerRotation(); }
+      } else {
+        updateTurnInfo();
+        updateInfo();
+        updateMarkerRotation();
+      }
     }
   },err=>{console.log("GPSエラー:"+err.message);},{enableHighAccuracy:true,maximiumAge:0});
 }
 
-// ナビ関連の関数は以前の完全版と同じ
+// ナビ関係は以前の完全版と同じ
 function searchAddress(){/* 省略 */}
 function setMode(m){mode=m; if(navStarted) startNav();}
 function startNav(){/* 省略 */}
