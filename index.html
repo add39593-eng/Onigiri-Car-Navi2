@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>おにぎりナビ 完全版</title>
+<title>おにぎりナビ 完全版GPS追尾</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -119,7 +119,10 @@ if("geolocation" in navigator){
     updateCurrentMarker();
 
     // ナビ中は少し俯瞰（ズーム16）、それ以外はズーム14
-    map.setView(currentLatLng, navStarted ? 16 : 14);
+    if(navStarted){ map.setZoom(16); } else { map.setZoom(14); }
+
+    // GPS追尾
+    map.panTo(currentLatLng);
 
     document.getElementById("gpsStatus").innerText="GPS取得完了";
 
@@ -127,7 +130,7 @@ if("geolocation" in navigator){
       let distToDest = map.distance(currentLatLng,destinationCircle.getLatLng());
       if(distToDest <= 20){
         document.getElementById("turnInfo").innerText="目的地に到着！";
-        endNav(); // 到着でルート自動終了
+        endNav(); // 到着で自動ルート終了
       } else {updateTurnInfo(); updateInfo();}
     } else if(navStarted){updateTurnInfo();updateInfo();}
   });
@@ -209,6 +212,7 @@ function endNav(){
   if(routeLine){ map.removeLayer(routeLine); routeLine=null; routeData=null; steps=[]; }
   document.getElementById("turnInfo").innerText="曲がり角案内";
   document.getElementById("info").innerText="残り距離・到着時間";
+  // GPS追尾は継続
 }
 
 // --- 曲がり角 ---
