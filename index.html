@@ -70,7 +70,7 @@ body{margin:0;font-family:sans-serif;overflow:hidden;}
   <input id="address" placeholder="目的地住所">
   <button onclick="searchAddress()" id="searchBtn">検索</button>
   <button onclick="startNav()" id="navBtn">ナビ開始</button>
-  <button onclick="endNav()" id="endBtn" style="display:none;">ルート終了</button>
+  <button onclick="endNav()" id="endBtn" style="display:none; z-index:1001;">ルート終了</button>
   <div class="modeButtons">
     <button onclick="setMode('driving')">車モード</button>
     <button onclick="setMode('foot')">歩行者モード</button>
