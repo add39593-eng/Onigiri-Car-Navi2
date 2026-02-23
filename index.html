@@ -6,6 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+<script src="https://rawcdn.githack.com/bbecquet/Leaflet.RotatedMarker/master/leaflet.rotatedMarker.js"></script>
 <style>
 body{margin:0;font-family:sans-serif;overflow:hidden;}
 #map{height:100vh; display:none;}
@@ -14,13 +15,8 @@ body{margin:0;font-family:sans-serif;overflow:hidden;}
   position:fixed; top:0; left:0; right:0;
   background:white; box-shadow:0 4px 10px rgba(0,0,0,0.3);
   z-index:1000; width:100%; font-size:14px; text-align:center; transition:all 0.5s ease;
-  border-radius:24px;
+  border-radius:24px; padding:10px;
 }
-#panelTop.nav{
-  height:auto;padding:10px; width:90%; max-width:400px; margin:0 auto;
-  border-radius:24px;
-}
-#panelTop input, #panelTop button, #panelTop .modeButtons{display:inline-block;}
 #panelBottom{
   position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
   background:white;padding:8px;border-radius:12px;
@@ -69,7 +65,7 @@ body{margin:0;font-family:sans-serif;overflow:hidden;}
   <input id="address" placeholder="目的地住所">
   <button onclick="searchAddress()" id="searchBtn">検索</button>
   <button onclick="startNav()" id="navBtn">ナビ開始</button>
-  <button onclick="endNav()" id="endBtn" style="display:none; z-index:1001;">ルート終了</button>
+  <button onclick="endNav()" id="endBtn" style="display:none;">ルート終了</button>
   <div class="modeButtons">
     <button onclick="setMode('driving')">車モード</button>
     <button onclick="setMode('foot')">歩行者モード</button>
@@ -106,7 +102,7 @@ if("geolocation" in navigator){
   navigator.geolocation.watchPosition(pos=>{
     currentLatLng=[pos.coords.latitude,pos.coords.longitude];
     if(!currentMarker){
-      currentMarker=L.circleMarker(currentLatLng,{radius:8,color:"deepskyblue",fillColor:"deepskyblue",fillOpacity:0.5}).addTo(map);
+      currentMarker=L.rotatedMarker(currentLatLng,{radius:8,icon:L.icon({iconUrl:'https://raw.githubusercontent.com/pointhi/leaflet-color-markers/master/img/marker-icon-blue.png',iconSize:[25,41],iconAnchor:[12,41]})}).addTo(map);
       map.setView(currentLatLng,16);
     } else currentMarker.setLatLng(currentLatLng);
 
@@ -118,7 +114,7 @@ if("geolocation" in navigator){
         document.getElementById("turnInfo").innerText="目的地に到着！";
         endNav(); // 到着で自動終了
       } else {
-        updateTurnInfo(); updateInfo();
+        updateTurnInfo(); updateInfo(); updateMarkerRotation();
       }
     }
   }, err=>{
@@ -200,24 +196,24 @@ function fetchRoute(){
       }
       steps.push({latlng:[s.maneuver.location[1],s.maneuver.location[0]],instruction:instr,distance:s.distance});
     });
-    updateTurnInfo(); updateInfo();
+    updateTurnInfo(); updateInfo(); updateMarkerRotation();
   });
 }
 
 function updateTurnInfo(){
-  if(!currentLatLng||steps.length===0){document.getElementById("turnInfo").innerText="曲がり角案内"; return;}
+  if(!currentLatLng||steps.length===0){document.getElementById("turnInfo").innerHTML="曲がり角案内"; return;}
   for(let i=0;i<steps.length;i++){
     let d=map.distance(currentLatLng,steps[i].latlng);
     if(d>5){
-      let arrow="";
+      let arrow="", color="deepskyblue";
       switch(steps[i].instruction){
-        case "直進": arrow="⬆"; break;
-        case "左に曲がる": arrow="⬅"; break;
-        case "右に曲がる": arrow="➡"; break;
-        case "Uターン": arrow="🔄"; break;
-        default: arrow="⬆";
+        case "直進": arrow="⬆"; color="green"; break;
+        case "左に曲がる": arrow="⬅"; color="orange"; break;
+        case "右に曲がる": arrow="➡"; color="orange"; break;
+        case "Uターン": arrow="🔄"; color="red"; break;
+        default: arrow="⬆"; color="green";
       }
-      document.getElementById("turnInfo").innerText=`次の曲がり角まで ${Math.round(d)} m ${arrow} ${steps[i].instruction}`;
+      document.getElementById("turnInfo").innerHTML=`<span style="font-size:18px; color:${color}">${arrow} ${steps[i].instruction}</span> <br>距離: ${Math.round(d)} m`;
       break;
     }
   }
@@ -233,7 +229,7 @@ function updateInfo(){
     if(d<minDist){minDist=d; nearestIndex=i;}
   });
 
-  if(minDist>50){ fetchRoute(); return; } // 自動再ルート
+  if(minDist>50){ fetchRoute(); return; }
 
   let dist=0;
   for(let i=nearestIndex;i<coords.length-1;i++)
@@ -253,7 +249,25 @@ function updateInfo(){
   }
 }
 
-setInterval(()=>{if(navStarted){updateTurnInfo();updateInfo();}},1000);
+function updateMarkerRotation(){
+  if(!currentLatLng || !routeData) return;
+  const coords=routeData.geometry.coordinates;
+  let nearestIndex=0, minDist=Infinity;
+  coords.forEach((c,i)=>{
+    let d=map.distance(currentLatLng,[c[1],c[0]]);
+    if(d<minDist){minDist=d; nearestIndex=i;}
+  });
+
+  if(nearestIndex<coords.length-1){
+    const next=[coords[nearestIndex+1][1], coords[nearestIndex+1][0]];
+    const dx=next[1]-currentLatLng[1];
+    const dy=next[0]-currentLatLng[0];
+    const angle=Math.atan2(dy,dx)*(180/Math.PI);
+    currentMarker.setRotationAngle(angle);
+  }
+}
+
+setInterval(()=>{if(navStarted){updateTurnInfo();updateInfo();updateMarkerRotation();}},1000);
 </script>
 </body>
 </html>
