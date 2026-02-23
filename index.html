@@ -16,11 +16,12 @@ body{margin:0;font-family:sans-serif;overflow:hidden;}
   z-index:1000; width:100%; font-size:14px; text-align:center; transition:all 0.5s ease;
   border-radius:24px;
 }
+#panelTop.opening{height:150px;padding:20px;}
 #panelTop.nav{
   height:auto;padding:10px; width:90%; max-width:400px; margin:0 auto;
   border-radius:24px;
 }
-#panelTop input, #panelTop button, #panelTop .modeButtons{display:inline-block;}
+#panelTop h1, #panelTop input, #panelTop button, #panelTop .modeButtons{display:none;}
 #panelBottom{
   position:fixed;bottom:10px;left:50%;transform:translateX(-50%);
   background:white;padding:8px;border-radius:12px;
@@ -64,12 +65,11 @@ body{margin:0;font-family:sans-serif;overflow:hidden;}
   <div>Now Loading…</div>
 </div>
 
-<div id="panelTop" class="nav">
+<div id="panelTop" class="opening">
   <div id="gpsStatus">GPS未取得</div>
   <input id="address" placeholder="目的地住所">
-  <button onclick="searchAddress()" id="searchBtn">検索</button>
-  <button onclick="startNav()" id="navBtn">ナビ開始</button>
-  <button onclick="endNav()" id="endBtn" style="display:none; z-index:1001;">ルート終了</button>
+  <button onclick="searchAddress()">検索</button>
+  <button onclick="startNav()">ナビ開始</button>
   <div class="modeButtons">
     <button onclick="setMode('driving')">車モード</button>
     <button onclick="setMode('foot')">歩行者モード</button>
@@ -86,19 +86,25 @@ body{margin:0;font-family:sans-serif;overflow:hidden;}
 <script>
 let map, currentLatLng=null, currentMarker=null;
 let destination=null, destinationMarker=null, destinationCircle=null;
-let routeLine=null, routeData=null, steps=[];
-let navStarted=false, mode='driving';
+let routeLine=null, routeData=null;
+let steps=[], navStarted=false, mode='driving';
 
 map = L.map('map').setView([35.681236,139.767125],14);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
 
 window.onload = function(){
+  const panelTop = document.getElementById('panelTop');
+  const panelBottom = document.getElementById('panelBottom');
+
   setTimeout(()=>{
     document.getElementById('loader').style.display='none';
     document.getElementById('map').style.display='block';
     map.invalidateSize();
-    document.getElementById('panelTop').style.display='block';
-    document.getElementById('panelBottom').style.display='block';
+    panelTop.classList.remove('opening');
+    panelTop.classList.add('nav');
+    panelTop.querySelectorAll('input, button, .modeButtons').forEach(e=>e.style.display='inline-block');
+    panelTop.style.display='block';
+    panelBottom.style.display='block';
   },3000);
 }
 
@@ -109,75 +115,59 @@ if("geolocation" in navigator){
       currentMarker=L.circleMarker(currentLatLng,{radius:8,color:"deepskyblue",fillColor:"deepskyblue",fillOpacity:0.5}).addTo(map);
       map.setView(currentLatLng,16);
     } else currentMarker.setLatLng(currentLatLng);
-
     document.getElementById("gpsStatus").innerText="GPS取得完了";
 
-    if(destinationCircle && currentLatLng && navStarted){
+    if(destinationCircle && currentLatLng){
       let distToDest = map.distance(currentLatLng,destinationCircle.getLatLng());
       if(distToDest <= 20){
         document.getElementById("turnInfo").innerText="目的地に到着！";
-        endNav(); // 到着で自動終了
-      } else {
+      } else if(navStarted){
         updateTurnInfo(); updateInfo();
       }
+    } else if(navStarted){
+      updateTurnInfo(); updateInfo();
     }
-  }, err=>{
-    alert("GPS取得エラー: "+err.message);
-  }, {enableHighAccuracy:true, maximumAge:0});
+  },err=>{alert("GPS取得エラー: "+err.message);},{enableHighAccuracy:true,maximumAge:0});
 } else alert("ブラウザが位置情報に対応していません");
 
 function searchAddress(){
-  if(navStarted){alert("ナビ中は目的地を変更できません"); return;}
   const addr = document.getElementById("address").value;
   fetch(`https://nominatim.openstreetmap.org/search?format=json&countrycodes=jp&q=${addr}`)
   .then(r=>r.json())
   .then(data=>{
     if(data.length>0){
-      setDestination([parseFloat(data[0].lat),parseFloat(data[0].lon)]);
+      destination=[parseFloat(data[0].lat),parseFloat(data[0].lon)];
+      if(destinationMarker) map.removeLayer(destinationMarker);
+      if(destinationCircle) map.removeLayer(destinationCircle);
+      destinationMarker = L.marker(destination).addTo(map);
+      destinationCircle = L.circle(destination,{radius:20,color:'red',fill:false}).addTo(map);
+      if(routeLine){ map.removeLayer(routeLine); routeLine=null; routeData=null; steps=[]; }
+      map.setView(destination,15);
+      navStarted=false;
+      document.getElementById("turnInfo").innerText="曲がり角案内";
+      document.getElementById("info").innerText="残り距離・到着時間";
     }
   });
 }
 
 map.on('click', function(e){
-  if(navStarted) return;
-  setDestination([e.latlng.lat,e.latlng.lng]);
-});
-
-function setDestination(latlng){
-  destination=latlng;
+  destination=[e.latlng.lat,e.latlng.lng];
   if(destinationMarker) map.removeLayer(destinationMarker);
   if(destinationCircle) map.removeLayer(destinationCircle);
   destinationMarker = L.marker(destination).addTo(map);
   destinationCircle = L.circle(destination,{radius:20,color:'red',fill:false}).addTo(map);
   if(routeLine){ map.removeLayer(routeLine); routeLine=null; routeData=null; steps=[]; }
+  navStarted=false;
   document.getElementById("turnInfo").innerText="曲がり角案内";
   document.getElementById("info").innerText="残り距離・到着時間";
-  map.setView(destination,15);
-}
+});
 
 function setMode(m){mode=m; if(navStarted) startNav();}
 
 function startNav(){
-  if(!currentLatLng||!destination){alert("現在地と目的地を設定してください");return;}
   navStarted=true;
-  document.getElementById("navBtn").style.display="none";
-  document.getElementById("endBtn").style.display="inline-block";
-  fetchRoute();
-}
+  if(!currentLatLng||!destination){alert("現在地と目的地を設定してください");return;}
 
-function endNav(){
-  navStarted=false;
-  document.getElementById("navBtn").style.display="inline-block";
-  document.getElementById("endBtn").style.display="none";
-  if(routeLine){ map.removeLayer(routeLine); routeLine=null; routeData=null; steps=[]; }
-  if(destinationMarker){ map.removeLayer(destinationMarker); destinationMarker=null; }
-  if(destinationCircle){ map.removeLayer(destinationCircle); destinationCircle=null; }
-  destination=null;
-  document.getElementById("turnInfo").innerText="曲がり角案内";
-  document.getElementById("info").innerText="残り距離・到着時間";
-}
-
-function fetchRoute(){
   let profile=(mode==='foot')?'foot':'driving';
   let url=`https://router.project-osrm.org/route/v1/${profile}/${currentLatLng[1]},${currentLatLng[0]};${destination[1]},${destination[0]}?overview=full&geometries=geojson&steps=true&alternatives=false`;
   fetch(url).then(r=>r.json()).then(data=>{
@@ -200,24 +190,17 @@ function fetchRoute(){
       }
       steps.push({latlng:[s.maneuver.location[1],s.maneuver.location[0]],instruction:instr,distance:s.distance});
     });
-    updateTurnInfo(); updateInfo();
+    updateTurnInfo();
+    updateInfo();
   });
 }
 
 function updateTurnInfo(){
-  if(!currentLatLng||steps.length===0){document.getElementById("turnInfo").innerText="曲がり角案内"; return;}
+  if(!currentLatLng||steps.length===0){document.getElementById("turnInfo").innerText="曲がり角案内";return;}
   for(let i=0;i<steps.length;i++){
     let d=map.distance(currentLatLng,steps[i].latlng);
     if(d>5){
-      let arrow="";
-      switch(steps[i].instruction){
-        case "直進": arrow="⬆"; break;
-        case "左に曲がる": arrow="⬅"; break;
-        case "右に曲がる": arrow="➡"; break;
-        case "Uターン": arrow="🔄"; break;
-        default: arrow="⬆";
-      }
-      document.getElementById("turnInfo").innerText=`次の曲がり角まで ${Math.round(d)} m ${arrow} ${steps[i].instruction}`;
+      document.getElementById("turnInfo").innerText=`次の曲がり角まで ${Math.round(d)} m → ${steps[i].instruction}`;
       break;
     }
   }
@@ -233,7 +216,12 @@ function updateInfo(){
     if(d<minDist){minDist=d; nearestIndex=i;}
   });
 
-  if(minDist>50){ fetchRoute(); return; } // 自動再ルート
+  // ルートから50m以上離れた場合、自動再計算
+  if(minDist>50){
+    console.log("ルート外れ検知: 再計算します");
+    startNav(); 
+    return; 
+  }
 
   let dist=0;
   for(let i=nearestIndex;i<coords.length-1;i++)
