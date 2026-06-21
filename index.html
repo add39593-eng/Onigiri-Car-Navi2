@@ -2,7 +2,7 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<title>おにぎりカーナビ 到着自動終了版</title>
+<title>おにぎりカーナビ 追尾切替・安定版</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
 <script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
@@ -29,6 +29,24 @@ body{margin:0;font-family:sans-serif;overflow:hidden;}
 .dot:nth-child(9){transform:rotate(320deg) translate(35px);}
 @keyframes spin{0%{transform:rotate(0deg);}100%{transform:rotate(360deg);}}
 .leaflet-control-zoom { display: none !important; }
+
+/* 追加：「現在地に戻る」ボタンのスタイル */
+#recenterBtn {
+  display: none;
+  position: fixed;
+  bottom: 70px;
+  right: 15px;
+  background: white;
+  color: deepskyblue;
+  border: 2px solid deepskyblue;
+  border-radius: 8px;
+  padding: 10px 15px;
+  font-size: 14px;
+  font-weight: bold;
+  box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+  z-index: 1000;
+  cursor: pointer;
+}
 </style>
 </head>
 <body>
@@ -54,6 +72,8 @@ body{margin:0;font-family:sans-serif;overflow:hidden;}
   <div id="info">残り距離・到着時間</div>
 </div>
 
+<button id="recenterBtn" onclick="recenterMap()">現在地に戻る</button>
+
 <div id="map"></div>
 
 <script>
@@ -61,20 +81,50 @@ let map,currentLatLng=null,currentMarker=null;
 let destination=null,destinationMarker=null,destinationCircle=null;
 let routeLine=null,routeData=null,steps=[];
 let navStarted=false,mode='driving';
-let arrivalDistance=20; // 20m以内で到着判定
+let arrivalDistance=20; 
 
-map=L.map('map');
+// 追加：状態を管理するフラグ
+let isTracking = true;       // 自動追尾するかどうか
+let firstLocationFound = false; // 最初の1回現在地を取得したかどうか
+
+// 変更：初期表示を日本全体にしておく（真っ白になるエラーを防ぐため）
+map=L.map('map').setView([36.2048, 138.2529], 5);
 L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+
+// 追加：地図をドラッグしたら自動追尾をオフにする
+map.on('dragstart', function() {
+    isTracking = false; // 追尾をストップ
+    if (currentLatLng) {
+        document.getElementById("recenterBtn").style.display = 'block'; // ボタンを表示
+    }
+});
+
+// 追加：「現在地に戻る」ボタンの機能
+function recenterMap() {
+    isTracking = true; // 追尾を再開
+    document.getElementById("recenterBtn").style.display = 'none'; // ボタンを隠す
+    if (currentLatLng) {
+        map.setView(currentLatLng, navStarted ? 16 : 14); // ナビ中はズーム、そうでない時は少し引いて表示
+    }
+}
 
 // GPS取得
 function initGPS(){
   if("geolocation" in navigator){
     navigator.geolocation.watchPosition(pos=>{
       currentLatLng=[pos.coords.latitude,pos.coords.longitude];
+      
+      // 最初の1回だけ、強制的に現在地へ移動する
+      if(!firstLocationFound) {
+          map.setView(currentLatLng, 14);
+          firstLocationFound = true;
+      }
+      
       updateCurrentMarker();
-      if(!navStarted) map.setView(currentLatLng,12); // 起動時俯瞰
-      if(navStarted) checkArrival(); // ナビ中は到着判定
-    },err=>{alert("GPS取得エラー: "+err.message);},{enableHighAccuracy:true,maximumAge:0});
+      if(navStarted) checkArrival(); 
+    },err=>{
+        alert("GPS取得エラー: "+err.message);
+    },{enableHighAccuracy:true,maximumAge:0});
   } else alert("ブラウザが位置情報に対応していません");
 }
 
@@ -83,7 +133,11 @@ function updateCurrentMarker(){
   if(currentLatLng){
     if(!currentMarker) currentMarker=L.circleMarker(currentLatLng,{radius:8,color:"deepskyblue",fillColor:"deepskyblue",fillOpacity:0.5}).addTo(map);
     else currentMarker.setLatLng(currentLatLng);
-    if(navStarted) map.setView(currentLatLng,16); // ナビ中はGPS追尾
+    
+    // 変更：ナビ開始中 かつ 自動追尾(isTracking)がONの時だけ画面を動かす
+    if(navStarted && isTracking) {
+        map.setView(currentLatLng, 16); 
+    }
   }
 }
 
@@ -92,7 +146,12 @@ function setDestination(latlng){if(navStarted) return; destination=latlng;
 if(destinationMarker) map.removeLayer(destinationMarker); if(destinationCircle) map.removeLayer(destinationCircle);
 destinationMarker=L.marker(destination).addTo(map); destinationCircle=L.circle(destination,{radius:arrivalDistance,color:'red',fill:false}).addTo(map);
 if(routeLine){ map.removeLayer(routeLine); routeLine=null; routeData=null; steps=[]; }
-map.setView(destination,12);
+
+// 目的地を設定したら追尾を一時的にオフにする（目的地周辺を見やすくするため）
+isTracking = false;
+document.getElementById("recenterBtn").style.display = 'block';
+map.setView(destination,14);
+
 document.getElementById("turnInfo").innerText="曲がり角案内"; document.getElementById("info").innerText="残り距離・到着時間";
 }
 
@@ -109,7 +168,10 @@ map.on('click',function(e){if(navStarted) return; setDestination([e.latlng.lat,e
 // ナビ開始
 function startNav(){
 if(!currentLatLng||!destination){alert("現在地と目的地を設定してください"); return;}
-navStarted=true; document.getElementById("endNavBtn").style.display='inline-block';
+navStarted=true; 
+isTracking=true; // ナビ開始時は追尾をONにする
+document.getElementById("recenterBtn").style.display='none';
+document.getElementById("endNavBtn").style.display='inline-block';
 map.setView(currentLatLng,16); 
 let profile='driving';
 let url=`https://router.project-osrm.org/route/v1/${profile}/${currentLatLng[1]},${currentLatLng[0]};${destination[1]},${destination[0]}?overview=full&geometries=geojson&steps=true&alternatives=true`;
@@ -138,6 +200,7 @@ updateTurnInfo(); updateInfo();}
 
 // ナビ終了
 function endNav(){navStarted=false; document.getElementById("endNavBtn").style.display='none';
+isTracking=true; document.getElementById("recenterBtn").style.display='none';
 if(routeLine){ map.removeLayer(routeLine); routeLine=null; routeData=null; steps=[]; }
 document.getElementById("turnInfo").innerText="曲がり角案内"; document.getElementById("info").innerText="残り距離・到着時間";}
 
