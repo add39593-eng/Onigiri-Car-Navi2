@@ -186,7 +186,7 @@ let navStarted = false;
 let arrivalDistance = 30;
 let isTracking = true;
 let firstLocationFound = false;
-let travelMode = 'driving'; // driving, driving_no_toll, foot, bike
+let travelMode = 'driving'; 
 let clickMode = 'dest';     
 
 const icons = {
@@ -198,6 +198,23 @@ const icons = {
   play: `<svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>`,
   stop: `<svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>`
 };
+
+// ピンの定義
+const pinShape = `<svg viewBox="0 0 24 24" width="30" height="30"><path d="M12 2c-4.4 0-8 3.6-8 8 0 5.4 7 13 8 13s8-7.6 8-13c0-4.4-3.6-8-8-8z" fill="COLOR" stroke="white" stroke-width="1.5"/><circle cx="12" cy="10" r="2.5" fill="white"/></svg>`;
+
+const destIcon = L.divIcon({
+    className: 'custom-dest-icon',
+    html: pinShape.replace("COLOR", "#eb3b5a"),
+    iconSize: [30, 30],
+    iconAnchor: [15, 30]
+});
+
+const waypointIcon = L.divIcon({
+    className: 'custom-waypoint-icon',
+    html: pinShape.replace("COLOR", "#f39c12"),
+    iconSize: [30, 30],
+    iconAnchor: [15, 30]
+});
 
 document.getElementById('btnTravelMode').innerHTML = icons.car;
 document.getElementById('btnClickMode').innerHTML = icons.dest;
@@ -259,11 +276,6 @@ function toggleTravelMode() {
     if(navStarted) return;
     let btn = document.getElementById('btnTravelMode');
     if(travelMode === 'driving') {
-        travelMode = 'driving_no_toll';
-        btn.innerHTML = icons.car;
-        btn.style.color = '#e67e22'; 
-        document.getElementById("turnInfo").innerText="モード：車（有料道路回避）";
-    } else if(travelMode === 'driving_no_toll') {
         travelMode = 'foot';
         btn.innerHTML = icons.foot;
         btn.style.color = '#e67e22';
@@ -303,22 +315,28 @@ function setDestination(latlng){
     destination = latlng;
     if(destinationMarker) map.removeLayer(destinationMarker); 
     if(destinationCircle) map.removeLayer(destinationCircle);
-    destinationMarker = L.marker(destination).addTo(map); 
+    destinationMarker = L.marker(destination, {icon: destIcon}).addTo(map); 
     destinationCircle = L.circle(destination,{radius:arrivalDistance,color:'red',fill:false}).addTo(map);
     resetRouteData();
     isTracking = false;
     document.getElementById("recenterBtn").style.display = 'flex';
-    map.setView(destination, 14);
     document.getElementById("turnInfo").innerText="📍 目的地をセットしました。▶ボタンで開始";
 }
 
 function addWaypoint(latlng) {
     if(navStarted) return;
     waypoints.push(latlng);
-    let marker = L.circleMarker(latlng, {radius:6, color:"white", weight:2, fillColor:"orange", fillOpacity:1}).addTo(map);
-    waypointMarkers.push(marker);
-    resetRouteData();
+    renderWaypoints();
     document.getElementById("turnInfo").innerText=`🚩 経由地を追加（計 ${waypoints.length} か所）。▶ボタンで開始`;
+}
+
+function renderWaypoints() {
+    waypointMarkers.forEach(m => map.removeLayer(m));
+    waypointMarkers = [];
+    waypoints.forEach((wp) => {
+        let marker = L.marker(wp, {icon: waypointIcon}).addTo(map);
+        waypointMarkers.push(marker);
+    });
 }
 
 function clearWaypoints() {
@@ -373,11 +391,7 @@ function startNav(){
     let coords = [currentLatLng, ...waypoints, destination];
     let coordsStr = coords.map(c => `${c[1]},${c[0]}`).join(';');
     
-    // 有料道路回避の場合はexcludeを指定（公開サーバーでサポートされている場合のみ有効）
-    let options = travelMode === 'driving_no_toll' ? "?exclude=toll&overview=full&geometries=geojson&steps=true" : "?overview=full&geometries=geojson&steps=true";
-    let url=`https://router.project-osrm.org/route/v1/driving/${coordsStr}${options}`;
-    if(travelMode === 'foot') url=`https://router.project-osrm.org/route/v1/foot/${coordsStr}${options}`;
-    if(travelMode === 'bike') url=`https://router.project-osrm.org/route/v1/bike/${coordsStr}${options}`;
+    let url=`https://router.project-osrm.org/route/v1/${travelMode}/${coordsStr}?overview=full&geometries=geojson&steps=true`;
     
     document.getElementById("turnInfo").innerText="🧭 ルートを計算中...";
     fetch(url).then(r=>r.json()).then(data=>{
