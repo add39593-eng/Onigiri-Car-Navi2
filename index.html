@@ -199,7 +199,6 @@ const icons = {
   stop: `<svg viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></svg>`
 };
 
-// ピンの定義
 const pinShape = `<svg viewBox="0 0 24 24" width="30" height="30"><path d="M12 2c-4.4 0-8 3.6-8 8 0 5.4 7 13 8 13s8-7.6 8-13c0-4.4-3.6-8-8-8z" fill="COLOR" stroke="white" stroke-width="1.5"/><circle cx="12" cy="10" r="2.5" fill="white"/></svg>`;
 
 const destIcon = L.divIcon({
@@ -225,7 +224,8 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).a
 
 map.on('dragstart', function() {
     isTracking = false;
-    if (currentLatLng && navStarted) document.getElementById("recenterBtn").style.display = 'flex';
+    // ナビ中かどうかにかかわらず、位置情報があれば表示する
+    if (currentLatLng) document.getElementById("recenterBtn").style.display = 'flex';
 });
 
 function recenterMap() {
