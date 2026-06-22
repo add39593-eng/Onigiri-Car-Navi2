@@ -186,7 +186,7 @@ let navStarted = false;
 let arrivalDistance = 30;
 let isTracking = true;
 let firstLocationFound = false;
-let travelMode = 'driving'; 
+let travelMode = 'driving'; // driving, driving_no_toll, foot, bike
 let clickMode = 'dest';     
 
 const icons = {
@@ -259,17 +259,25 @@ function toggleTravelMode() {
     if(navStarted) return;
     let btn = document.getElementById('btnTravelMode');
     if(travelMode === 'driving') {
+        travelMode = 'driving_no_toll';
+        btn.innerHTML = icons.car;
+        btn.style.color = '#e67e22'; 
+        document.getElementById("turnInfo").innerText="モード：車（有料道路回避）";
+    } else if(travelMode === 'driving_no_toll') {
         travelMode = 'foot';
         btn.innerHTML = icons.foot;
-        btn.style.color = '#e67e22'; 
+        btn.style.color = '#e67e22';
+        document.getElementById("turnInfo").innerText="モード：徒歩";
     } else if(travelMode === 'foot') {
         travelMode = 'bike';
         btn.innerHTML = icons.bike;
         btn.style.color = '#27ae60'; 
+        document.getElementById("turnInfo").innerText="モード：自転車";
     } else {
         travelMode = 'driving';
         btn.innerHTML = icons.car;
         btn.style.color = 'deepskyblue'; 
+        document.getElementById("turnInfo").innerText="モード：車";
     }
     resetRouteData();
 }
@@ -364,7 +372,12 @@ function startNav(){
 
     let coords = [currentLatLng, ...waypoints, destination];
     let coordsStr = coords.map(c => `${c[1]},${c[0]}`).join(';');
-    let url=`https://router.project-osrm.org/route/v1/${travelMode}/${coordsStr}?overview=full&geometries=geojson&steps=true`;
+    
+    // 有料道路回避の場合はexcludeを指定（公開サーバーでサポートされている場合のみ有効）
+    let options = travelMode === 'driving_no_toll' ? "?exclude=toll&overview=full&geometries=geojson&steps=true" : "?overview=full&geometries=geojson&steps=true";
+    let url=`https://router.project-osrm.org/route/v1/driving/${coordsStr}${options}`;
+    if(travelMode === 'foot') url=`https://router.project-osrm.org/route/v1/foot/${coordsStr}${options}`;
+    if(travelMode === 'bike') url=`https://router.project-osrm.org/route/v1/bike/${coordsStr}${options}`;
     
     document.getElementById("turnInfo").innerText="🧭 ルートを計算中...";
     fetch(url).then(r=>r.json()).then(data=>{
@@ -428,7 +441,6 @@ function updateInfo(){
     let hours = Math.floor(timeH); 
     let minutes = Math.round((timeH-hours)*60);
     
-    // 到着予定時刻の計算
     let arrivalTime = new Date(Date.now() + (timeH * 60 * 60 * 1000));
     let timeStr = arrivalTime.toLocaleTimeString('ja-JP', { hour: '2-digit', minute: '2-digit' });
     
