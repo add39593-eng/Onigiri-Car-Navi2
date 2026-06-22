@@ -103,7 +103,7 @@ body{margin:0;font-family:sans-serif;overflow:hidden;background:#f1f2f6;}
 
 #recenterBtn {
   position: fixed;
-  bottom: 110px;
+  bottom: 80px; /* 少し下げました */
   right: 15px;
   background: white;
   color: deepskyblue;
@@ -224,7 +224,6 @@ L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).a
 
 map.on('dragstart', function() {
     isTracking = false;
-    // ナビ中かどうかにかかわらず、位置情報があれば表示する
     if (currentLatLng) document.getElementById("recenterBtn").style.display = 'flex';
 });
 
